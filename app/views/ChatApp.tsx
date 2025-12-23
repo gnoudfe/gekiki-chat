@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 
-import { redirect } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { ChatSession, Message, Role } from "../types";
 import { fileToBase64 } from "../utils/filetoBase64";
@@ -15,6 +14,7 @@ import {
   MenuIcon,
   MicIcon,
   PaperclipIcon,
+  PinIcon,
   PlusIcon,
   SendIcon,
   TrashIcon,
@@ -41,10 +41,16 @@ export default function ChatApp() {
   }, []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
-  const [imageBase64, setImageBase64] = useState<string>("");
+  const [attachment, setAttachment] = useState<{
+    content: string;
+    mimeType: string;
+    fileName: string;
+  } | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
@@ -121,7 +127,11 @@ export default function ChatApp() {
           if (!file) continue;
 
           const base64 = await fileToBase64(file);
-          setImageBase64(base64);
+          setAttachment({
+            content: base64,
+            mimeType: file.type,
+            fileName: file.name,
+          });
           setIsImagePreviewOpen(true);
         }
       }
@@ -171,6 +181,13 @@ export default function ChatApp() {
       return filtered;
     });
   };
+  
+  const togglePinSession = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, isPinned: !s.isPinned } : s))
+    );
+  };
 
   const onImageClick = useCallback((src: string) => {
     setPreviewImage(src);
@@ -180,17 +197,18 @@ export default function ChatApp() {
   
     // Logic fix: (!message && !image) prevents empty sends.
     // Removed !currentSessionId check so we can create one on the fly.
-    if ((!message?.trim() && !imageBase64) || isGenerating)
+    if ((!message?.trim() && !attachment) || isGenerating)
       return;
     
-    console.log('message', message);
+    setFileError(null); // Clear error on send
+    
     const userMsgContent = message?.trim() || input.trim();
     const userMessage: Message = {
       id: uuidv4(),
       role: Role.USER,
       content: userMsgContent,
       timestamp: new Date(),
-      ...(imageBase64 && { imageBase64 }),
+      ...(attachment && { attachment }),
     };
 
     let targetSessionId = currentSessionId;
@@ -210,9 +228,9 @@ export default function ChatApp() {
     }
     setInput("");
     setIsGenerating(true);
-    // Keep image preview if there's no text, otherwise clear it
+    // Keep attachment preview if there's no text, otherwise clear it
     if (input.trim()) {
-      setImageBase64("");
+      setAttachment(null);
       setIsImagePreviewOpen(false);
     }
 
@@ -256,15 +274,15 @@ export default function ChatApp() {
       const history = session ? session.messages.slice(0, -2) : []; // Exclude user and placeholder
 
       let fullResponse = "";
-      const imageToSend = imageBase64
-        ? { url: imageBase64, mimeType: "" }
+      const fileToSend = attachment
+        ? { content: attachment.content, mimeType: attachment.mimeType }
         : undefined;
 
       for await (const chunk of geminiService.streamChat(
         history,
         userMsgContent,
         selectedModel,
-        imageToSend?.url
+        fileToSend
       )) {
         fullResponse += chunk;
         setSessions((prev) =>
@@ -283,7 +301,8 @@ export default function ChatApp() {
       }
       // Clear image preview after successful send
       setIsImagePreviewOpen(false);
-      setImageBase64("");
+      setIsImagePreviewOpen(false);
+      setAttachment(null);
     } catch (error) {
       console.error(error);
       setSessions((prev) =>
@@ -318,14 +337,63 @@ export default function ChatApp() {
     () => setIsRecording(true),
     () => setIsRecording(false)
   );
-  const handleImageUpload = async (
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const isValid = file.type.startsWith("image/") || file.type === "application/pdf" || file.type.startsWith("text/");
+    
+    if (!isValid) {
+      setFileError(`Định dạng file "${file.name}" không được hỗ trợ. Vui lòng gửi ảnh, PDF hoặc file văn bản.`);
+      return;
+    }
+
+    setFileError(null);
+    const base64 = await fileToBase64(file);
+    setAttachment({
+      content: base64,
+      mimeType: file.type,
+      fileName: file.name,
+    });
+    setIsImagePreviewOpen(true);
+  };
+
+  const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const isValid = file.type.startsWith("image/") || file.type === "application/pdf" || file.type.startsWith("text/");
+    
+    if (!isValid) {
+      setFileError(`Định dạng file "${file.name}" không được hỗ trợ. Vui lòng gửi ảnh, PDF hoặc file văn bản.`);
+      event.target.value = ""; // Clear input
+      return;
+    }
+
+    setFileError(null);
     const base64 = await fileToBase64(file);
-    setImageBase64(base64);
+    setAttachment({
+      content: base64,
+      mimeType: file.type,
+      fileName: file.name,
+    });
     setIsImagePreviewOpen(true);
   };
 
@@ -378,10 +446,61 @@ export default function ChatApp() {
 
           {isSidebarOpen ? (
             <div className="pt-4 px-2">
+              {sessions.some(s => s.isPinned) && (
+                <>
+                  <p className="text-[10px] uppercase font-bold text-zinc-600 mb-2">
+                    Đã ghim
+                  </p>
+                  {sessions
+                    .filter((s) => s.isPinned)
+                    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                    .map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        setCurrentSessionId(s.id);
+                        if (window.innerWidth < 768) setIsSidebarOpen(false);
+                      }}
+                      className={`
+                    group flex items-center gap-3 p-3 rounded-md cursor-pointer text-sm transition-colors truncate
+                    ${
+                      currentSessionId === s.id
+                        ? "bg-zinc-900 text-zinc-100"
+                        : "hover:bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+                    }
+                  `}
+                    >
+                      <PinIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      <span className="text-sm truncate flex-1">{s.title}</span>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => togglePinSession(e, s.id)}
+                          className="p-1 hover:text-indigo-400"
+                          title="Bỏ ghim"
+                        >
+                          <PinIcon className="w-3.5 h-3.5 fill-current" />
+                        </button>
+                        <button
+                          onClick={(e) => deleteSession(e, s.id)}
+                          className="p-1 hover:text-red-400"
+                          title="Xóa"
+                        >
+                          <TrashIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="my-4 h-[1px] bg-zinc-900" />
+                </>
+              )}
+              
               <p className="text-[10px] uppercase font-bold text-zinc-600 mb-2">
                 Gần đây
               </p>
-              {sessions.map((s) => (
+              {sessions
+                .filter(s => !s.isPinned)
+                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                .map((s) => (
                 <div
                   key={s.id}
                   onClick={() => {
@@ -392,18 +511,28 @@ export default function ChatApp() {
                 group flex items-center gap-3 p-3 rounded-md cursor-pointer text-sm transition-colors truncate
                 ${
                   currentSessionId === s.id
-                    ? "hover:bg-zinc-900 "
-                    : "hover:bg-zinc-900  text-zinc-400"
+                    ? "bg-zinc-900 text-zinc-100"
+                    : "hover:bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
                 }
               `}
                 >
                   <span className="text-sm truncate flex-1">{s.title}</span>
-                  <button
-                    onClick={(e) => deleteSession(e, s.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"
-                  >
-                    <TrashIcon className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => togglePinSession(e, s.id)}
+                      className="p-1 hover:text-indigo-400"
+                      title="Ghim"
+                    >
+                      <PinIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => deleteSession(e, s.id)}
+                      className="p-1 hover:text-red-400"
+                      title="Xóa"
+                    >
+                      <TrashIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -553,23 +682,65 @@ export default function ChatApp() {
 
         {/* Input area */}
         <div className="p-4  w-full md:p-6 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent">
-          <div className="max-w-3xl mx-auto relative group">
-            {isImagePreviewOpen && imageBase64 && (
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`max-w-3xl mx-auto relative group rounded-2xl transition-all duration-200 ${
+              isDragging ? "ring-2 ring-indigo-500 bg-indigo-500/10" : ""
+            }`}
+          >
+            {isDragging && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-indigo-500/5 backdrop-blur-[2px] rounded-2xl border-2 border-dashed border-indigo-500 pointer-events-none">
+                <div className="flex flex-col items-center gap-2">
+                  <PlusIcon className="w-8 h-8 text-indigo-400" />
+                </div>
+              </div>
+            )}
+            {fileError && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-xs text-red-400 font-medium">
+                  {fileError}
+                </span>
+                <button 
+                  onClick={() => setFileError(null)}
+                  className="ml-auto p-1 hover:bg-red-500/20 rounded-md transition-colors"
+                >
+                  <PlusIcon className="w-3.5 h-3.5 rotate-45 text-red-400" />
+                </button>
+              </div>
+            )}
+            {isImagePreviewOpen && attachment && (
               <div className="absolute bottom-full left-0 right-0 p-2 bg-gray-800/50 rounded-t-lg">
-                <div className="relative">
-                  <img
-                    src={imageBase64}
-                    alt="preview"
-                    className="h-24 w-auto rounded-lg"
-                  />
+                <div className="relative inline-block">
+                  {attachment.mimeType.startsWith("image/") ? (
+                    <img
+                      src={attachment.content}
+                      alt="preview"
+                      className="h-24 w-auto rounded-lg"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-zinc-800 rounded-lg border border-zinc-700">
+                      <PaperclipIcon className="w-5 h-5 text-zinc-400" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-zinc-200 truncate max-w-[150px]">
+                          {attachment.fileName}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 uppercase">
+                          {attachment.mimeType.split("/")[1] || "FILE"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setIsImagePreviewOpen(false);
-                      setImageBase64("");
+                      setAttachment(null);
                     }}
-                    className="absolute top-1 right-1 bg-gray-900/50 rounded-full p-1"
+                    className="absolute -top-2 -right-2 bg-zinc-900 rounded-full p-1 border border-zinc-700 hover:bg-zinc-800 transition shadow-lg"
                   >
-                    <PlusIcon className="w-4 h-4 rotate-45" />
+                    <PlusIcon className="w-4 h-4 rotate-45 text-zinc-400" />
                   </button>
                 </div>
               </div>
@@ -593,8 +764,7 @@ export default function ChatApp() {
               type="file"
               id="file-upload"
               className="hidden"
-              accept="image/*"
-              onChange={handleImageUpload}
+              onChange={handleFileUpload}
             />
             <label
               htmlFor="file-upload"

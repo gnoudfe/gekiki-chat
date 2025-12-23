@@ -165,3 +165,18 @@ export function LogOutIcon(props: any) {
     </svg>
   );
 }
+ 
+export const PinIcon = ({ className = "w-4 h-4" }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <line x1="12" y1="17" x2="12" y2="22"></line>
+    <path d="M5 17h14v-2l-1.5-1.5v-6a5.5 5.5 0 0 0-11 0v6L5 15v2z"></path>
+  </svg>
+);

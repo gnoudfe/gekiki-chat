@@ -42,7 +42,7 @@ export class GeminiService {
 
   constructor() {
     this.ai = new GoogleGenAI({
-      apiKey: 'AIzaSyDkveypj9vDnKDGjiOd1oeGG0vTQlovTYs', // ❗ backend only
+      apiKey: "AIzaSyDkveypj9vDnKDGjiOd1oeGG0vTQlovTYs", // ❗ backend only
     });
   }
 
@@ -50,7 +50,10 @@ export class GeminiService {
     history: Message[],
     userInput: string,
     modelId: string = "gemini-2.5-flash",
-    imageBase64?: string
+    fileData?: {
+      content: string;
+      mimeType: string;
+    }
   ) {
     const contents: Content[] = [
       {
@@ -70,15 +73,11 @@ export class GeminiService {
     /** 3️⃣ User input */
     const userParts: Part[] = [{ text: userInput }];
 
-    if (imageBase64) {
-      const [meta, data] = imageBase64.split(",");
-      const mimeType =
-        meta.match(/data:(.*);base64/)?.[1] ?? "image/png";
-
+    if (fileData) {
       userParts.push({
         inlineData: {
-          mimeType,
-          data,
+          mimeType: fileData.mimeType,
+          data: fileData.content.split(",")[1] || fileData.content, // Ensure only base64 part
         },
       });
     }

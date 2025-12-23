@@ -1,8 +1,6 @@
 import React, { memo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Message, Role } from "../types";
-import { UserIcon, RobotIcon } from "./Icons";
+import { PaperclipIcon } from "./Icons";
 import Markdown from "./Markdown";
 
 const ChatMessage: React.FC<{
@@ -20,18 +18,6 @@ const ChatMessage: React.FC<{
           isUser ? "flex-row-reverse" : "flex-row"
         }`}
       >
-        {/* <div
-          className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
-            isUser ? "bg-indigo-800 ml-3" : "bg-slate-700 mr-3"
-          }`}
-        >
-          {isUser ? (
-            <UserIcon className="w-5 h-5 text-white" />
-          ) : (
-            <RobotIcon className="w-5 h-5 text-indigo-400" />
-          )}
-        </div> */}
-
         <div
           className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
         >
@@ -42,13 +28,29 @@ const ChatMessage: React.FC<{
                 : "bg-slate-800 text-slate-100 border border-slate-700 rounded-tl-none"
             }`}
           >
-            {message.imageBase64 && (
-              <img
-                src={message.imageBase64}
-                alt="uploaded"
-                onClick={() => onImageClick?.(message.imageBase64!)}
-                className="rounded-xl max-w-xs mt-2 cursor-zoom-in hover:opacity-90 transition"
-              />
+            {message.attachment && (
+              message.attachment.mimeType.startsWith("image/") ? (
+                <img
+                  src={message.attachment.content}
+                  alt="uploaded"
+                  onClick={() => onImageClick?.(message.attachment?.content || "")}
+                  className="rounded-xl max-w-xs mt-2 cursor-zoom-in hover:opacity-90 transition"
+                />
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-zinc-900/50 rounded-xl mt-2 max-w-xs border border-zinc-700/50">
+                  <div className="p-2 bg-zinc-800 rounded-lg">
+                     <PaperclipIcon className="w-5 h-5 text-zinc-400" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate text-zinc-200">
+                      {message.attachment.fileName || "File Attachment"}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 uppercase">
+                      {message.attachment.mimeType.split("/")[1] || "FILE"}
+                    </span>
+                  </div>
+                </div>
+              )
             )}
             <Markdown content={message.content} />
           </div>

@@ -9,7 +9,11 @@ export interface Message {
   role: Role;
   content: string;
   timestamp: Date;
-  imageBase64?: string;
+  attachment?: {
+    content: string; // base64
+    mimeType: string;
+    fileName?: string;
+  };
   onImageClick?: (src: string) => void;
 }
 
@@ -18,6 +22,7 @@ export interface ChatSession {
   title: string;
   messages: Message[];
   updatedAt: Date;
+  isPinned?: boolean;
 }
 
 export enum AuthMode {
