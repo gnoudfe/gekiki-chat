@@ -23,7 +23,7 @@
 
 ## 🛠 Tech Stack
 
-- **Framework:** [Next.js 15+ (App Router)](https://nextjs.org/)
+- **Framework:** [Next.js 16+ (App Router)](https://nextjs.org/)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
 - **AI Engine:** [Google Gemini API](https://ai.google.dev/)

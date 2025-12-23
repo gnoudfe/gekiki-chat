@@ -5,12 +5,28 @@ export function useVoiceInput(
   onStart?: () => void,
   onEnd?: () => void
 ) {
+  // SSR check
+  if (typeof window === "undefined") {
+    return {
+      start: () => {},
+      stop: () => {},
+      isSupported: false,
+    };
+  }
+
   const SpeechRecognition =
     (window as any).SpeechRecognition ||
     (window as any).webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
-    throw new Error("Browser không hỗ trợ Speech Recognition");
+    return {
+      start: () => {
+        console.error("Browser does not support Speech Recognition");
+        alert("Your browser does not support voice input.");
+      },
+      stop: () => {},
+      isSupported: false,
+    };
   }
 
   const recognition = new SpeechRecognition();
