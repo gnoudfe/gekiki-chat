@@ -19,3 +19,15 @@ export interface ChatSession {
   messages: Message[];
   updatedAt: Date;
 }
+
+export enum AuthMode {
+  SIGN_IN = "SIGN_IN",
+  SIGN_UP = "SIGN_UP",
+  FORGOT_PASSWORD = "FORGOT_PASSWORD",
+}
+
+export interface AuthState {
+  mode: AuthMode;
+  isLoading: boolean;
+  error: string | null;
+}

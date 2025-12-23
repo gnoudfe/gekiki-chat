@@ -20,7 +20,7 @@ const ChatMessage: React.FC<{
           isUser ? "flex-row-reverse" : "flex-row"
         }`}
       >
-        <div
+        {/* <div
           className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
             isUser ? "bg-indigo-800 ml-3" : "bg-slate-700 mr-3"
           }`}
@@ -30,7 +30,7 @@ const ChatMessage: React.FC<{
           ) : (
             <RobotIcon className="w-5 h-5 text-indigo-400" />
           )}
-        </div>
+        </div> */}
 
         <div
           className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
